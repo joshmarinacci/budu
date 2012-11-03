@@ -1,14 +1,19 @@
 package com.joshondesign.tuneserver;
 
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.*;
 import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import javax.jmdns.JmDNS;
+import javax.jmdns.ServiceInfo;
+import javax.swing.*;
 
 /**
  * Created by IntelliJ IDEA.
@@ -19,6 +24,9 @@ import java.util.*;
  */
 public class Main {
     private static ITunesDB itunes;
+    private static ServiceInfo service;
+    private static JmDNS mdns;
+    private static CustomNanoHTTPD server;
 
     public static void main(String ... args) throws InterruptedException {
         final ITunesParser parser = new ITunesParser() {
@@ -75,7 +83,9 @@ public class Main {
 
     private static void startServer(ITunesDB itunes) {
         try {
-            NanoHTTPD server = new CustomNanoHTTPD(1957, itunes);
+            server = new CustomNanoHTTPD(1957, itunes);
+            startMDNS(itunes);
+            showGUI();
             /*
             try {
                 Thread.currentThread().sleep(300);
@@ -122,44 +132,59 @@ public class Main {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        /*
-        try {
-            InetSocketAddress addr = new InetSocketAddress(1957);
-            HttpServer server = HttpServer.create(addr, 0);
-
-            server.createContext("/", new ListLibrary(itunes));
-            server.createContext("/artist/", new ListArtist(itunes));
-            server.createContext("/download/", new DownloadSong(itunes));
-            server.setExecutor(Executors.newCachedThreadPool());
-            server.start();
-            System.out.println("Server is listening on port " + addr.getHostName() + " " + addr.getAddress() + " " + addr.getPort() );
-            dumpIP();
-
-        } catch (Throwable thr) {
-            thr.printStackTrace();
-        }
-        */
     }
-                                                     /*
 
-    private static void dumpIP() throws UnknownHostException {
-        String hostName = InetAddress.getLocalHost().getHostName();
-        InetAddress addrs[] = InetAddress.getAllByName(hostName);
-        String myIp = "UNKNOWN";
-        for (InetAddress addr: addrs) {
+    private static void showGUI() {
+        final JFrame frame = new JFrame("Budu Server");
 
-            System.out.println ("addr.getHostAddress() = " + addr.getHostAddress());
-            System.out.println ("addr.getHostName() = " + addr.getHostName());
-            System.out.println ("addr.isAnyLocalAddress() = " + addr.isAnyLocalAddress());
-            System.out.println ("addr.isLinkLocalAddress() = " + addr.isLinkLocalAddress());
-            System.out.println ("addr.isLoopbackAddress() = " + addr.isLoopbackAddress());
-            System.out.println ("addr.isMulticastAddress() = " + addr.isMulticastAddress());
-            System.out.println ("addr.isSiteLocalAddress() = " + addr.isSiteLocalAddress());
-            System.out.println ("");
-        }
-        System.out.println ("\nIP = " + myIp);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel,BoxLayout.Y_AXIS));
+        panel.add(new JLabel("Server is running  "));
+        JButton stopButton = new JButton("stop");
+        stopButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent actionEvent) {
+                try {
+                    stopMDNS();
+                    stopServer();
+                    frame.setVisible(false);
+                    frame.dispose();
+                    System.exit(0);
+                } catch (IOException e) {
+                    e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                }
+            }
+        });
+        panel.add(stopButton);
+
+
+        frame.add(panel);
+        frame.pack();
+        frame.setVisible(true);
     }
-*/
+
+    private static void stopServer() throws IOException {
+        server.stop();
+        u.p("server stopped");
+    }
+
+    private static void startMDNS(ITunesDB itunes) throws IOException {
+        mdns = JmDNS.create();
+        Map<String,String> props = new HashMap<String,String>();
+        props.put("artistcount",""+itunes.sortedArtists.size());
+        props.put("trackcount",""+itunes.getTotalTrackCount());
+        props.put("albumcount",""+itunes.getTotalAlbumCount());
+        service = ServiceInfo.create("_http._tcp.local.", "buduserver", 8954, 0,0, props);
+        mdns.registerService(service);
+    }
+    private static void stopMDNS() throws IOException {
+        u.p("unregisetering");
+        mdns.unregisterService(service);
+        mdns.unregisterAllServices();
+        mdns.close();
+        u.p("done");
+    }
+
+
     private static class CustomNanoHTTPD extends NanoHTTPD {
         private ITunesDB itunes;
 
@@ -295,197 +320,6 @@ public class Main {
                 e.printStackTrace();
             }
             return null;
-        }
-    }
-}
-
-class DownloadSong implements HttpHandler {
-    private ITunesDB itunes;
-
-    public DownloadSong(ITunesDB itunes) {
-        this.itunes = itunes;
-    }
-
-    public void handle(HttpExchange exchange) throws IOException {
-        u.p("======================= ");
-        u.p("" + exchange.getRequestURI());
-        String[] parts = exchange.getRequestURI().getPath().split("/");
-        int id = Integer.parseInt(parts[2]);
-        u.p("method = " + exchange.getRequestMethod());
-        u.p("getting song: " + id);
-        Track track = itunes.findTrackById(id);
-        u.p("going to stream file: \n" + track.getLocation());
-
-        //dump headers
-        Headers requestHeaders = exchange.getRequestHeaders();
-        dumpSet(requestHeaders);
-        u.p("--- responding");
-        try {
-            File file = new File("/Users/josh/Sites/together.mp3");
-            u.p("filesize = " + file.length());
-            Headers responseHeaders = exchange.getResponseHeaders();
-            responseHeaders.set("Content-Type", "audio/mpeg");
-            //responseHeaders.set("Cache-Control","no-cache");
-            //responseHeaders.set("Accept-Ranges","bytes");
-            /*
-            responseHeaders.set("Content-Range",
-                    "bytes 0-"+file.length()+"/"+file.length());
-            responseHeaders.set("Content-Range",
-                    "bytes 8022072456253489920-/"+file.length());
-            u.p("file len = " + file.length());
-            */
-            dumpSet(responseHeaders);
-            if(requestHeaders.containsKey("Range")) {
-                u.p("this is a range request");
-                String value = requestHeaders.get("Range").get(0);
-                u.p("value = " + value);
-                String p2 = value.split("=")[1];
-                String[] ps = p2.split("-");
-                u.p("starting of range = " + ps[0]);
-                //u.p("ending of range = " + ps[1]);
-                long startRange = Long.parseLong(ps[0]);
-                u.p("range = " + startRange);
-                responseHeaders.set("Content-Range",
-                        "bytes 0-"+file.length()+"/"+file.length());
-                dumpSet(responseHeaders);
-                /*
-                if(startRange > file.length()) {
-                    u.p("out of range. can't satisfy it");
-                    responseHeaders.set("Connection","close");
-                    exchange.sendResponseHeaders(416,file.length());
-                    exchange.close();
-                    return;
-                } */
-                exchange.sendResponseHeaders(206, 1);
-                exchange.close();
-            } else {
-                u.p("this is a normal request");
-                responseHeaders.set("Content-Range",
-                        "0-" + (file.length() - 1) + "/" + file.length());
-                dumpSet(responseHeaders);
-                exchange.sendResponseHeaders(200, file.length());
-            }
-            //URI file = new URI(track.getLocation());
-            //URI file = new URI("file://localhost/Volumes/6207683")
-            InputStream input = file.toURL().openStream();
-            OutputStream output = exchange.getResponseBody();
-            long total = 0;
-            try {
-                byte[] buff = new byte[1024*16];
-                while(true) {
-                    int n = input.read(buff);
-                    if(n < 0) break;
-                    output.write(buff,0,n);
-                    total += n;
-                }
-                
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-            u.p("sent total bytes = " + total);
-            exchange.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void dumpSet(Headers requestHeaders) {
-        Set<String> keySet = requestHeaders.keySet();
-        Iterator<String> iter = keySet.iterator();
-        while (iter.hasNext()) {
-            String key = iter.next();
-            List values = requestHeaders.get(key);
-            String s = key + " = " + values.toString() + "\n";
-            //responseBody.write(s.getBytes());
-            u.p(s);
-        }
-    }
-}
-
-class ListArtist implements HttpHandler {
-    private ITunesDB itunes;
-
-    public ListArtist(ITunesDB itunes) {
-        this.itunes = itunes;
-    }
-
-    public void handle(HttpExchange exchange) throws IOException {
-        try {
-            Headers responseHeaders = exchange.getResponseHeaders();
-            u.p("" + exchange.getRequestURI());
-            
-            String[] parts = exchange.getRequestURI().getPath().split("/");
-            String artistName = parts[2];
-            String albumName =  parts[3];
-            u.p("getting info for artist: " + artistName);
-            u.p("album: = " + albumName);
-            
-            Artist artist = itunes.getArtistByName(artistName);
-            Album album = artist.getAlbum(albumName);
-            u.p("real album = " + album);
-
-
-
-
-            responseHeaders.set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, 0);
-            OutputStream responseBody = exchange.getResponseBody();
-            PrintWriter pw = new PrintWriter(responseBody);
-            JSONPrinter j = new JSONPrinter(pw);
-            j.open();
-            j.println("\"tracks\":[");
-            j.indent();
-            
-            for(Track track : album.getTracks()) {
-                j.open();
-                j.indent();
-                j.p("name", track.getName());
-                j.p("location", track.getLocation());
-                j.p("id",track.getId());
-                j.outdent();
-                j.close();
-                j.println(",");
-            }
-            
-            j.outdent();
-            j.println("],");
-            j.close();
-
-            pw.close();
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
-}
-
-class ListLibrary implements HttpHandler {
-    private ITunesDB itunes;
-
-    public ListLibrary(ITunesDB itunes) {
-        this.itunes = itunes;
-    }
-
-    public void handle(HttpExchange exchange) throws IOException {
-        u.p("on: " + exchange.getLocalAddress());
-        String requestMethod = exchange.getRequestMethod();
-        if (requestMethod.equalsIgnoreCase("GET")) {
-            Headers responseHeaders = exchange.getResponseHeaders();
-            responseHeaders.set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, 0);
-
-            OutputStream responseBody = exchange.getResponseBody();
-            Headers requestHeaders = exchange.getRequestHeaders();
-            /*
-            Set<String> keySet = requestHeaders.keySet();
-            Iterator<String> iter = keySet.iterator();
-            while (iter.hasNext()) {
-                String key = iter.next();
-                List values = requestHeaders.get(key);
-                String s = key + " = " + values.toString() + "\n";
-                responseBody.write(s.getBytes());
-            } */
-
-            Main.printSummary(itunes,responseBody);
         }
     }
 }

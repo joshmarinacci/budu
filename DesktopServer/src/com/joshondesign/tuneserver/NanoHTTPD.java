@@ -139,6 +139,10 @@ public class NanoHTTPD {
         return ss.getInetAddress();
     }
 
+    public void stop() throws IOException {
+        ss.close();
+    }
+
     /**
    * HTTP response. Return one of these from serve().
    */

@@ -80,4 +80,7 @@ public class ITunesDB {
         //artist.get
     }
 
+    public int getTotalAlbumCount() {
+        return this.albumMap.size();
+    }
 }
