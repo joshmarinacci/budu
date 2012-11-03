@@ -3,6 +3,11 @@
 
 Function main() as void
     GetGlobalAA().baseURL = "http://192.168.0.5:1957/"
+    sec = CreateObject("roRegistrySection", "budu")
+    if (sec.Exists("baseurl")) then 
+        GetGlobalAA().baseURL = sec.Read("baseurl")
+    end if
+
     menuOptions = [
         {
             Title:"Playlists",
@@ -28,18 +33,24 @@ Function main() as void
             ShortDescriptionLine1:"Search by Genre",
             HDSmallIconUrl: "pkg:/images/breakfast_small.png",
         }
+        {
+            Title:"Set Server",
+            ID:"5",
+            ShortDescriptionLine1:"set desktop server",
+            HDSmallIconUrl: "pkg:/images/breakfast_small.png",
+        }
     ]
     
     screen = CreateObject("roListScreen")
     screen.SetContent(menuOptions)
     
-    screen.SetHeader("Welcome to The Machine")
+    screen.SetHeader("server: " + GetGlobalAA().baseURL)
     screen.SetTitle("Tunes Now")
     screen.setBreadcrumbText("Menu","Playlists")
     port = CreateObject("roMessagePort")
     screen.SetMessagePort(port)
     
-    menuFunctions = [ShowPlaylistsMenu, ShowArtistsMenu, ShowAlbumsMenu, ShowGenresMenu]
+    menuFunctions = [ShowPlaylistsMenu, ShowArtistsMenu, ShowAlbumsMenu, ShowGenresMenu, ShowSetServer]
     
     screen.show()
     
@@ -60,6 +71,37 @@ Function main() as void
     
 End Function
 
+Function ShowSetServer() as void
+    screen = createObject("roKeyboardScreen")
+    screen.setText("192.168.0.")
+    screen.addButton(1, "save")
+    screen.addButton(2, "cancel")
+    screen.setDisplayText("server ip address")
+    port = CreateObject("roMessagePort")
+    screen.SetMessagePort(port)
+    screen.show()
+    while(true)
+        msg = wait(0,port)
+        if type(msg) = "roKeyboardScreenEvent"
+             if msg.isScreenClosed()
+                 return 
+             else if msg.isButtonPressed() then
+                 print "Evt:"; msg.GetMessage ();" idx:"; msg.GetIndex()
+                 if msg.GetIndex() = 1
+                     searchText = screen.GetText()
+                     print "new ip address = "; searchText 
+                     GetGlobalAA().baseURL = "http://"+searchText+":1957/"
+                     sec = CreateObject("roRegistrySection", "budu")
+                     sec.Write("baseurl", GetGlobalAA().baseURL)
+                     sec.Flush() 'commit it
+
+                     return
+                 endif
+             endif
+         endif
+    end while
+    
+end function
 
 Function  ShowPlaylistsMenu() as void
     ' a list of play lists
@@ -181,8 +223,10 @@ Function ShowAlbum(artist, album) as void
                     print "   index = "; msg.getIndex()
                     print "   started next track"
                     print "   index = ";index
-                    track = list[index]
-                    track.HDSmallIconUrl = ""
+                    if(index >= 0) then
+                        track = list[index]
+                        track.HDSmallIconUrl = ""
+                    endif
                     index = index + 1
                     track = list[index]
                     print "   index = ";index
@@ -234,6 +278,7 @@ Function DownloadArtists() as object
     print "making an http request"
     http = CreateObject("roUrlTransfer")
     http.setUrl(GetGlobalAA().baseURL+"artists/")
+    print "connecting to " + http.getURL()
     xmlstring = http.getToString()
     print "donwnloaded"
     xml = CreateObject("roXMLElement")
