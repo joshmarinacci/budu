@@ -32,15 +32,7 @@
  */
 package com.joshondesign.tuneserver;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -446,7 +438,7 @@ public class NanoHTTPD {
           throw new Error("sendResponse(): Status can't be null.");
 
         OutputStream out = mySocket.getOutputStream();
-        PrintWriter pw = new PrintWriter(out);
+        PrintWriter pw = new PrintWriter(new OutputStreamWriter(out,"UTF8"));
         pw.print("HTTP/1.0 " + status + " \r\n");
         p("HTTP/1.0 " + status + " \r\n");
 

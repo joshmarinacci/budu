@@ -84,8 +84,8 @@ public class Main {
     private static void startServer(ITunesDB itunes) {
         try {
             server = new CustomNanoHTTPD(1957, itunes);
-            startMDNS(itunes);
             showGUI();
+            startMDNS(itunes);
             /*
             try {
                 Thread.currentThread().sleep(300);
