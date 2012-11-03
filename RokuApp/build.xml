@@ -1,0 +1,23 @@
+<?xml version="1.0" ?>
+<project>
+
+
+<target name="build">
+
+<zip destfile="tuneclient.zip">
+    <fileset dir=".">
+        <include name="**"/>
+        <exclude name="build.xml"/>
+        <exclude name="Makefile"/>
+        <exclude name="*.zip"/>
+    </fileset>
+</zip>
+
+</target>
+
+<target name="install">
+    <exec command='curl -s -S -F "mysubmit=Install" -F "archive=@tuneclient.zip" -F "passwd=" http://192.168.0.13/plugin_install'>
+    </exec>
+</target>
+
+</project>
