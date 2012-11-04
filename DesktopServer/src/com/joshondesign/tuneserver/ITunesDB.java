@@ -28,6 +28,12 @@ public class ITunesDB {
         return null;
     }
 
+    //TODO: why do we have a duplicate method here?
+    public Track getTrackById(Integer id) {
+        return findTrackById(id);
+    }
+
+
     public void addTrackToArtist(Track currentTrack) {
         if(!artists.containsKey(currentTrack.getArtist())) {
             artists.put(currentTrack.getArtist(),new Artist(currentTrack.getArtist()));
@@ -82,5 +88,12 @@ public class ITunesDB {
 
     public int getTotalAlbumCount() {
         return this.albumMap.size();
+    }
+
+    public Playlist getPlaylistByID(int id) {
+        for(Playlist list : playlists) {
+            if(list.getId() == id) return list;
+        }
+        return null;
     }
 }

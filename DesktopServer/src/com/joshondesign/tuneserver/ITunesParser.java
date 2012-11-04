@@ -12,6 +12,9 @@ import org.xml.sax.helpers.DefaultHandler;
  * A parser for the iTunes Database Format
  */
 class ITunesParser extends BackgroundTask<File,ITunesDB> {
+    public static void main(String ... args) throws InterruptedException {
+        new ITunesParser().start();
+    }
     ITunesDB db = new ITunesDB();
     private DefaultHandler handler = new DefaultHandler(){
         public int dictLevel = 0;
@@ -102,9 +105,9 @@ class ITunesParser extends BackgroundTask<File,ITunesDB> {
                 currentTrack.setArtist(append(currentTrack.getArtist(),ch,start,length));
                 //db.addTrackToArtist(currentTrack);
                 //db.artistMap.put(currentTrack.getArtist(),currentTrack);
-                if(currentTrack.getArtist() != null && currentTrack.getArtist().startsWith("Dick")) {
-                    p(currentTrack.getArtist());
-                }
+                //if(currentTrack.getArtist() != null && currentTrack.getArtist().startsWith("Dick")) {
+//                    p(currentTrack.getArtist());
+//                }
             }
             if("string".equals(currentQname) && "Album".equals(currentKey) && currentTrack != null) {
                 currentTrack.setAlbum(new String(ch,start,length));
@@ -136,6 +139,10 @@ class ITunesParser extends BackgroundTask<File,ITunesDB> {
                     } else {
                         currentPlaylist.setName(value);
                     }
+                }
+                if("integer".equals(currentQname) && "Playlist ID".equals(currentKey)) {
+                    u.p("got the id of a playlist: " + value);
+                    currentPlaylist.setId(Integer.parseInt(value));
                 }
                 //pick up the track id inside the playlist
                 if("Track ID".equals(currentKey) && "integer".equals(currentQname)) {
@@ -230,7 +237,7 @@ class ITunesParser extends BackgroundTask<File,ITunesDB> {
             while(at.hasNext()) {
                 Artist artist = at.next();
                 if(artist.getAlbumCount() <= 0) {
-                    u.p("removing " + artist.getName());
+                    //u.p("removing " + artist.getName());
                     db.removeArtist(artist);
                     at.remove();
                 }
@@ -246,6 +253,11 @@ class ITunesParser extends BackgroundTask<File,ITunesDB> {
 
             long afterTime = System.currentTimeMillis();
             p("parse time = " + (afterTime - time) + "ms");
+            u.p("total artist count " + db.sortedArtists.size());
+            u.p("total playlist count " + db.playlists.size());
+            for(Playlist pl : db.playlists) {
+                u.p("  " + pl.getName() + " " +  pl.getTrackCount());
+            }
             return db;
         } catch (Exception e) {
             e.printStackTrace();

@@ -1,10 +1,6 @@
 package com.joshondesign.tuneserver;
 
-import javax.swing.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 public abstract class BackgroundTask<D,R> {
     private D data;
@@ -33,7 +29,7 @@ public abstract class BackgroundTask<D,R> {
 
     public final void start() throws InterruptedException {
         onStart(data);
-        ExecutorService pool = Executors.newFixedThreadPool(10);
+        ExecutorService pool = Executors.newFixedThreadPool(1);
         Future<R> result = pool.submit(new Callable<R>() {
             public R call() throws Exception {
                 try {
@@ -53,5 +49,8 @@ public abstract class BackgroundTask<D,R> {
                 }
             }
         });
+        pool.awaitTermination(3, TimeUnit.SECONDS);
+        u.p("terminated");
+        pool.shutdown();
     }
 }

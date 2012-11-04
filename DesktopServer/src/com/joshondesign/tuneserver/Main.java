@@ -85,7 +85,7 @@ public class Main {
         try {
             server = new CustomNanoHTTPD(1957, itunes);
             showGUI();
-            startMDNS(itunes);
+            //startMDNS(itunes);
             /*
             try {
                 Thread.currentThread().sleep(300);
@@ -144,7 +144,7 @@ public class Main {
         stopButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent actionEvent) {
                 try {
-                    stopMDNS();
+                    //stopMDNS();
                     stopServer();
                     frame.setVisible(false);
                     frame.dispose();
@@ -202,14 +202,20 @@ public class Main {
                 return serveArtists(itunes);
             }
             if(uri.startsWith("/albums")) {
-                return serveAlbums(itunes,parms);
+                return serveAlbums(itunes, parms);
             }
             if(uri.startsWith("/tracks")) {
-                return serveTracks(itunes,parms);
+                return serveTracks(itunes, parms);
+            }
+            if(uri.startsWith("/playlists")) {
+                return servePlaylists(itunes);
+            }
+            if(uri.startsWith("/playlist")) {
+                return servePlaylist(itunes, parms);
             }
             return super.serve(uri, method, header, parms);
         }
-        
+
         private Response serveTracks(ITunesDB itunes, Properties parms) {
             u.p("id = " + parms.getProperty("albumid"));
             Album album = itunes.getAlbumById(parms.getProperty("albumid"));
@@ -270,6 +276,44 @@ public class Main {
             return new Response(HTTP_OK, MIME_XML, xml.toString());
         }
 
+        private Response servePlaylists(ITunesDB itunes) {
+
+            StringBuffer xml = new StringBuffer();
+            xml.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+            xml.append("<library>\n");
+            xml.append(" <playlists>\n");
+            for(Playlist list : itunes.playlists) {
+                xml.append("  <playlist");
+                xml.append(" name='"+clean(list.getName())+"'");
+                xml.append(" id='"+list.getId()+"'");
+                xml.append(" trackcount='"+list.getTrackCount()+"'");
+                xml.append(" />\n");
+            }
+            xml.append(" </playlists>\n");
+            xml.append("</library>\n");
+            return new Response(HTTP_OK, MIME_XML, xml.toString());
+        }
+
+
+        private Response servePlaylist(ITunesDB itunes, Properties parms) {
+            Playlist playlist = itunes.getPlaylistByID(Integer.parseInt(parms.getProperty("playlistid")));
+
+            StringBuffer xml = new StringBuffer();
+            xml.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+            xml.append("<library>\n");
+            xml.append(" <tracks>\n");
+            for(Integer id  : playlist.getTrackIDs()) {
+                Track track = itunes.getTrackById(id);
+                xml.append("  <track "
+                        +" name=\""+track.getName().replace("&","_")+"\""
+                        +" id='"+track.getId()+"'"
+                        +" />\n");
+            }
+            xml.append(" </tracks>\n");
+            xml.append("</library>\n");
+            return new Response(HTTP_OK, MIME_XML, xml.toString());
+        }
+
         private NanoHTTPD.Response serveDownloadSong(String uri, Properties header) {
             try {
                 String id = uri;
@@ -321,5 +365,11 @@ public class Main {
             }
             return null;
         }
+    }
+
+    private static String clean(String str) {
+        str = str.replaceAll("&","&amp;");
+        str = str.replaceAll("'","&quot;");
+        return str;
     }
 }

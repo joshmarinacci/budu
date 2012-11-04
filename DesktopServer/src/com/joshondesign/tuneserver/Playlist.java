@@ -13,6 +13,7 @@ import java.util.List;
 public class Playlist {
     private String name;
     private List<Integer> trackIDs;
+    private int id;
 
     public Playlist() {
         trackIDs = new ArrayList<Integer>();
@@ -43,5 +44,13 @@ public class Playlist {
 
     public int getTrackCount() {
         return trackIDs.size();
+    }
+
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public int getId() {
+        return id;
     }
 }
