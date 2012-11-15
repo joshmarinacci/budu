@@ -150,7 +150,7 @@ public class Main {
                     frame.dispose();
                     System.exit(0);
                 } catch (IOException e) {
-                    e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                    e.printStackTrace();
                 }
             }
         });
@@ -213,7 +213,27 @@ public class Main {
             if(uri.startsWith("/playlist")) {
                 return servePlaylist(itunes, parms);
             }
+            if(uri.startsWith("/genres")) {
+                return serveGenres(itunes, parms);
+            }
             return super.serve(uri, method, header, parms);
+        }
+
+        private Response serveGenres(ITunesDB itunes, Properties parms) {
+            StringBuffer xml = new StringBuffer();
+            xml.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+            xml.append("<library>\n");
+            xml.append(" <genres>\n");
+            for(Genre genre : itunes.getGenres()) {
+                xml.append("  <genre ");
+                xml.append(" name='"+genre.getName().replace("&","&amp;")+"\"");
+                xml.append(" id='"+genre.getId()+"'");
+                xml.append(" trackcount='"+genre.getTrackCount()+"'");
+                xml.append("/>\n");
+            }
+            xml.append(" </genres>\n");
+            xml.append("</library>\n");
+            return new Response(HTTP_OK, MIME_XML, xml.toString());
         }
 
         private Response serveTracks(ITunesDB itunes, Properties parms) {

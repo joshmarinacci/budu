@@ -8,4 +8,19 @@ package com.joshondesign.tuneserver;
  * To change this template use File | Settings | File Templates.
  */
 public class Genre {
+    private String name;
+    private int id;
+    private int trackCount;
+
+    public String getName() {
+        return name;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public int getTrackCount() {
+        return trackCount;
+    }
 }

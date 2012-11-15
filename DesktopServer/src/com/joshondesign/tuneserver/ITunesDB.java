@@ -96,4 +96,8 @@ public class ITunesDB {
         }
         return null;
     }
+
+    public Iterable<? extends Genre> getGenres() {
+        return new ArrayList<Genre>();
+    }
 }
