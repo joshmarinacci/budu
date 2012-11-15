@@ -112,6 +112,7 @@ Function  ShowPlaylistsMenu() as void
     screen.SetTitle("Playlists b")
     screen.setBreadcrumbText("Menu","Playlists")
     port = CreateObject("roMessagePort")
+    screen.SetMessagePort(port)
     screen.show()
     while(true)
         msg = wait(0,port)
@@ -119,6 +120,7 @@ Function  ShowPlaylistsMenu() as void
             if(msg.isListItemFocused())
             endif                    
             if(msg.isListItemSelected())
+                ShowPlaylist(list[msg.getIndex()])
             endif
         endif
         if(msg.isScreenClosed())
@@ -128,23 +130,154 @@ Function  ShowPlaylistsMenu() as void
 End Function
 
 Function DownloadPlaylists() as object
-    playlists = [
-        {
-            Title:"Best of the 80s",
-        },
-        {
-            Title:"Best of the 90s",
-        },
-        {
-            Title:"Sleepy Mix",
-        },
-        {
-            Title:"Rockin' Round the Tree",
-        }
-    ]
+    
+    print "making an http request"
+    http = CreateObject("roUrlTransfer")
+    http.setUrl(GetGlobalAA().baseURL+"playlists/")
+    print "connecting to " + http.getURL()
+    xmlstring = http.getToString()
+    print "donwnloaded"
+    xml = CreateObject("roXMLElement")
+    success = xml.parse(xmlstring)
+    print "success parsing = ";success
+    print "xml = ";xml.getname()
+
+    playlists = CreateObject("roArray",0,true)
+    print "count = ";playlists.Count()
+    for each playlist in xml.playlists.playlist
+        playlists.Push({
+            Title:playlist@name,
+            id:playlist@id,
+            trackcount:playlist@trackcount,
+            ShortDescriptionLine1: playlist@trackcount +" songs",
+        })
+    end for
     return playlists
+    
 End Function
 
+Function ShowPlaylist(playlist) as void
+    print "showing a playlist"
+    screen = CreateObject("roListScreen")
+    list = DownloadTracksForPlaylist(playlist)
+    screen.setContent(list)
+    screen.setHeader("Songs for Playlist")
+    screen.setTitle(playlist.Title)
+    screen.setBreadcrumbText("Songs",playlist.Title)
+    port = CreateObject("roMessagePort")
+    screen.SetMessagePort(port)
+    screen.show()
+    while(true)
+        msg = wait(0,port)
+        if(msg.isScreenClosed())
+            return
+        endif
+        if(type(msg) = "roListScreenEvent")
+            if(msg.isListItemSelected())
+                ShowSequencePlayer(list,list[msg.getIndex()],msg.getIndex())
+            endif
+        endif
+    end while
+end function
+
+Function DownloadTracksForPlaylist(playlist) as object
+    print "making an http request"
+    http = CreateObject("roUrlTransfer")
+    http.setUrl(GetGlobalAA().baseURL+"playlist?playlistid="+playlist.id)
+    xmlstring = http.getToString()
+    print "donwnloaded"
+    xml = CreateObject("roXMLElement")
+    success = xml.parse(xmlstring)
+    print "success parsing = ";success
+    print "xml = ";xml.getname()
+
+    tracks = CreateObject("roArray",0,true)
+    for each track in xml.tracks.track
+        print "track = ";track@name
+        tracks.Push({
+            Title:track@name,
+            id:track@id,
+            ContentType:"audio",
+            name:track@name
+            description:track@name + "foo",
+            shortDescriptionLine1:track@name,
+            format:"mp3"
+            url:GetGlobalAA().baseURL+"download/"+track@id+".mp3"
+        })
+    end for
+    return tracks
+end function
+
+
+Function ShowSequencePlayer(list, item, index) as void
+    port = CreateObject("roMessagePort")
+    screen = CreateObject("roSpringboardScreen")
+    screen.setDescriptionStyle("audio")
+    screen.setProgressIndicatorEnabled(true)
+    screen.addButton(1,"Pause/Resume")
+    screen.setStaticRatingEnabled(false)
+    screen.setContent(list)
+    screen.setMessagePort(port)
+    
+    player = createObject("roAudioPlayer")
+    player.setMessagePort(port)
+    player.setLoop(false)
+    player.clearContent()
+    
+    player.stop()
+    player.clearContent()
+    player.setContentList(list)
+    player.setNext(index)
+    player.play()
+    screen.show()
+    playing = true
+    while(true)
+        msg = wait(0,port)
+        if(msg.isScreenClosed())
+            return
+        endif
+        print type(msg)
+        print msg.getmessage()
+        if type(msg) = "roAudioPlayerEvent"
+            if msg.isStatusMessage() then
+                if (msg.getMessage() = "startup progress") then 
+                    print "startup progress"
+                endif
+                if (msg.getMessage() = "start of play") then
+                    print "   status message  " + msg.getMessage()
+                    print "   index = "; msg.getIndex()
+                    print "   started next track"
+                endif
+                if msg.isRequestSucceeded()
+                    print "request succeeded on track: ";msg.getIndex()
+                endif
+                if msg.isRequestFailed()
+                    print "request succeeded on track: ";msg.getIndex()
+                endif
+            endif
+        endif
+        if type(msg) = "roSpringboardScreenEvent"
+            if msg.isRemoteKeyPressed() 
+                print "remote key pressed "; msg.getIndex()
+            endif
+            if msg.isButtonPressed()
+                print "butotn pressed"; msg.getIndex()
+                if(msg.getIndex() = 1) 
+                    if(playing)
+                        player.pause()
+                        playing = false
+                    else
+                        player.resume()
+                        playing = true
+                    endif
+                endif
+            endif
+            if msg.isButtonInfo()
+                print "button info "; msg.getIndex()
+            endif
+        endif
+    end while
+end function
 
 Function ShowArtist(artist) as void
     ' the main view for an artist. list their albums
@@ -179,71 +312,17 @@ Function ShowAlbum(artist, album) as void
     screen.setBreadcrumbText("Artists",artist.Title)
     port = createobject("roMessagePort")
     screen.setmessageport(port)
-    
-    player = createObject("roAudioPlayer")
-    player.setMessagePort(port)
-    player.setLoop(false)
-    player.clearContent()
-    
-    
-    index = 0
     screen.show()
     while(true)
         msg = wait(0,port)
-        if (msg.getMessage() = "startup progress") then 
-            goto quick
-        endif
         if(msg.isScreenClosed())
             return
         endif
-        print type(msg)
-        print msg.getmessage()
         if(type(msg) = "roListScreenEvent")
             if(msg.isListItemSelected())
-                track = list[msg.getindex()]
-                print "== streaming url" + track.url
-                player.stop()
-                player.clearContent()
-                player.setContentList(list)
-                player.setNext(msg.getIndex())
-                index = msg.getIndex() - 1
-                player.play()
-                track.HDSmallIconUrl = "pkg:/images/dessert_small.png"
-                screen.show()
-                screen.setItem(msg.getIndex(),track)
+                ShowSequencePlayer(list, list[msg.getIndex()], msg.getIndex())
             endif
         endif
-        if type(msg) = "roAudioPlayerEvent"
-            if msg.isStatusMessage() then
-                if (msg.getMessage() = "startup progress") then 
-                    
-                endif
-                if (msg.getMessage() = "start of play") then
-                    print "   status message  " + msg.getMessage()
-                    print "   index = "; msg.getIndex()
-                    print "   started next track"
-                    print "   index = ";index
-                    if(index >= 0) then
-                        track = list[index]
-                        track.HDSmallIconUrl = ""
-                    endif
-                    index = index + 1
-                    track = list[index]
-                    print "   index = ";index
-                    track.HDSmallIconUrl = "pkg:/images/dessert_small.png"
-                    print "   updated"
-                    screen.show()
-                    screen.setItem(index,track)
-                endif
-                if msg.isRequestSucceeded()
-                    print "request succeeded on track: ";msg.getIndex()
-                endif
-                if msg.isRequestFailed()
-                    print "request succeeded on track: ";msg.getIndex()
-                endif
-            endif
-        endif
-        quick:
     end while
 End Function
 
