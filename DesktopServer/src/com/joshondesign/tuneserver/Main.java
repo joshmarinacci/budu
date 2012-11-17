@@ -324,6 +324,8 @@ public class Main {
             xml.append(" <tracks>\n");
             for(Integer id  : playlist.getTrackIDs()) {
                 Track track = itunes.getTrackById(id);
+                if(track == null) continue;
+                if(track.getName() == null) continue;
                 xml.append("  <track "
                         +" name=\""+track.getName().replace("&","_")+"\""
                         +" id='"+track.getId()+"'"
