@@ -193,7 +193,7 @@ Function DownloadTracksForPlaylist(playlist) as object
 
     tracks = CreateObject("roArray",0,true)
     for each track in xml.tracks.track
-        print "track = ";track@name
+'        print "track = ";track@name
         tracks.Push({
             Title:track@name,
             id:track@id,
@@ -201,7 +201,10 @@ Function DownloadTracksForPlaylist(playlist) as object
             name:track@name
             description:track@name + "foo",
             shortDescriptionLine1:track@name,
-            format:"mp3"
+            Album:track@album,
+            Artist:track@artist,
+            format:"mp3",
+            Length:Int((track@totaltime).toFloat()/1000),
             url:GetGlobalAA().baseURL+"download/"+track@id+".mp3"
         })
     end for
@@ -216,7 +219,7 @@ Function ShowSequencePlayer(list, item, index) as void
     screen.setProgressIndicatorEnabled(true)
     screen.addButton(1,"Pause/Resume")
     screen.setStaticRatingEnabled(false)
-    screen.setContent(list)
+    screen.setContent(item)
     screen.setMessagePort(port)
     
     player = createObject("roAudioPlayer")
@@ -230,50 +233,80 @@ Function ShowSequencePlayer(list, item, index) as void
     player.setNext(index)
     player.play()
     screen.show()
+    screen.setProgressIndicator(60,100)
+    
+    startTime = CreateObject( "roDateTime" )
+    currentTime = CreateObject( "roDateTime" )
+    
+
     playing = true
     while(true)
-        msg = wait(0,port)
-        if(msg.isScreenClosed())
-            return
-        endif
-        print type(msg)
-        print msg.getmessage()
-        if type(msg) = "roAudioPlayerEvent"
-            if msg.isStatusMessage() then
-                if (msg.getMessage() = "startup progress") then 
-                    print "startup progress"
-                endif
-                if (msg.getMessage() = "start of play") then
-                    print "   status message  " + msg.getMessage()
-                    print "   index = "; msg.getIndex()
-                    print "   started next track"
-                endif
-                if msg.isRequestSucceeded()
-                    print "request succeeded on track: ";msg.getIndex()
-                endif
-                if msg.isRequestFailed()
-                    print "request succeeded on track: ";msg.getIndex()
-                endif
+        msg = wait(1000,port)
+        currentTime.mark()
+        diff = currentTime.asSeconds()-startTime.asSeconds()
+        screen.setProgressIndicator(diff,list[index].Length)
+        if msg <> invalid then
+            if(msg.isScreenClosed())
+                return
             endif
-        endif
-        if type(msg) = "roSpringboardScreenEvent"
-            if msg.isRemoteKeyPressed() 
-                print "remote key pressed "; msg.getIndex()
-            endif
-            if msg.isButtonPressed()
-                print "butotn pressed"; msg.getIndex()
-                if(msg.getIndex() = 1) 
-                    if(playing)
-                        player.pause()
-                        playing = false
-                    else
-                        player.resume()
-                        playing = true
+            print type(msg)
+            print msg.getmessage()
+            if type(msg) = "roAudioPlayerEvent"
+                if msg.isStatusMessage() then
+                    if (msg.getMessage() = "startup progress") then 
+                        print "startup progress"
+                    endif
+                    if (msg.getMessage() = "start of play") then
+                        print "   status message  " + msg.getMessage()
+                        print "   index = "; msg.getIndex()
+                        print "   started next track"
+                        startTime.mark()
+                        currentTime.mark()
+                    endif
+                    if msg.isRequestSucceeded()
+                        print "request succeeded on track: ";msg.getIndex()
+                    endif
+                    if msg.isRequestFailed()
+                        print "request succeeded on track: ";msg.getIndex()
                     endif
                 endif
             endif
-            if msg.isButtonInfo()
-                print "button info "; msg.getIndex()
+            if type(msg) = "roSpringboardScreenEvent"
+                if msg.isRemoteKeyPressed() 
+                    print "remote key pressed "; msg.getIndex()
+                    if msg.getIndex()=4
+                        index = index - 1
+                        if(index < 0)
+                            index = 0
+                        endif
+                        screen.setContent(list[index])
+                        player.stop()
+                        player.setNext(index)
+                        player.play()
+                    endif
+                    if msg.getIndex()=5
+                        index = index + 1
+                        screen.setContent(list[index])
+                        player.stop()
+                        player.setNext(index)
+                        player.play()
+                    endif
+                endif
+                if msg.isButtonPressed()
+                    print "button pressed"; msg.getIndex()
+                    if(msg.getIndex() = 1) 
+                        if(playing)
+                            player.pause()
+                            playing = false
+                        else
+                            player.resume()
+                            playing = true
+                        endif
+                    endif
+                endif
+                if msg.isButtonInfo()
+                    print "button info "; msg.getIndex()
+                endif
             endif
         endif
     end while
